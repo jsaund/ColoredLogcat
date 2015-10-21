@@ -45,10 +45,10 @@ RULES = {
     #re.compile(r"([\w\.@]+)=([\w\.@]+)"): r"%s\1%s=%s\2%s" % (format(fg=BLUE), format(fg=GREEN), format(fg=BLUE), format(reset=True)),
 }
 
-TIMESTAMP_WIDTH = 14
+TIMESTAMP_WIDTH = 12
 TAGTYPE_WIDTH = 3
 TAG_WIDTH = 25
-PROCESS_WIDTH = 8
+PROCESS_WIDTH = 7
 HEADER_SIZE = TIMESTAMP_WIDTH + 1 + TAGTYPE_WIDTH + 1 + TAG_WIDTH + 1 + PROCESS_WIDTH + 1
 
 def format(fg=None, bg=None, bright=False, bold=False, dim=False, reset=False):
@@ -121,14 +121,12 @@ def main():
 
             linebuf = cStringIO.StringIO()
 
-            # center timestamp
             if TIMESTAMP_WIDTH > 0:
-                timestamp = timestamp.strip().center(TIMESTAMP_WIDTH)
                 linebuf.write("%s%s%s " % (LIGHT_GRAY, timestamp, format(reset=True)))
 
             # center process info
             if PROCESS_WIDTH > 0:
-                owner = owner.strip().center(PROCESS_WIDTH)
+                owner = owner.center(PROCESS_WIDTH)
                 linebuf.write("%s%s%s " % (LIGHT_GRAY, owner, format(reset=True)))
 
             # right-align tag title and allocate color if needed
@@ -142,7 +140,7 @@ def main():
             linebuf.write(TAGTYPES[tagtype])
 
             # insert line wrapping as needed
-            message = indent_wrap(message, HEADER_SIZE, WIDTH)
+            message = indent_wrap(message.strip(), HEADER_SIZE, WIDTH)
 
             # format tag message using rules
             for matcher in RULES:
