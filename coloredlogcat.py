@@ -21,7 +21,7 @@
 import os
 import sys
 import re
-import StringIO
+import cStringIO
 import fcntl
 import termios
 import struct
@@ -67,15 +67,17 @@ def format(fg=None, bg=None, bright=False, bold=False, dim=False, reset=False):
 
 def indent_wrap(message, indent=0, width=80):
     wrap_area = width - indent
-    messagebuf = StringIO.StringIO()
+    messagebuf = cStringIO.StringIO()
     current = 0
     while current < len(message):
         next = min(current + wrap_area, len(message))
-        messagebuf.write(message[current:next])
+        messagebuf.write(message[current:next].lstrip())
         if next < len(message):
             messagebuf.write("\n%s" % (" " * indent))
         current = next
-    return messagebuf.getvalue()
+    val = messagebuf.getvalue()
+    messagebuf.close()
+    return val
 
 def allocate_color(tag):
     # this will allocate a unique format for the given tag
@@ -116,7 +118,8 @@ def main():
         match = retag.match(line)
         if not match is None:
             date, timestamp, tagtype, tag, owner, message = match.groups()
-            linebuf = StringIO.StringIO()
+
+            linebuf = cStringIO.StringIO()
 
             # center timestamp
             if TIMESTAMP_WIDTH > 0:
@@ -147,9 +150,9 @@ def main():
                 message = matcher.sub(replace, message)
 
             linebuf.write(message)
-            line = linebuf.getvalue()
+            print linebuf.getvalue()
+            linebuf.close()
 
-        print line
         if len(line) == 0: break
 
 if __name__ == "__main__":
