@@ -89,6 +89,21 @@ def allocate_color(tag):
     LAST_USED.append(color)
     return color
 
+def extractPID(package):
+    # attempt to extract the process ID from adb shell
+    # if there is no pid associated with the package name then return None
+    input = os.popen("adb shell ps | grep %s" % package)
+    try:
+        line = input.readline()
+    except:
+        return None
+    else:
+        if not line:
+            return None
+        return line.split()[1]
+    finally:
+        input.close()
+
 TAGTYPES = {
     "V": "%s%s%s " % (format(fg=WHITE, bg=BLACK), "V".center(TAGTYPE_WIDTH), format(reset=True)),
     "D": "%s%s%s " % (format(fg=BLACK, bg=BLUE), "D".center(TAGTYPE_WIDTH), format(reset=True)),
@@ -99,13 +114,14 @@ TAGTYPES = {
 
 def main():
     retag = re.compile("^(\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWE])\/(.*)(\(\d+\)):(.*)$")
-
-    # to pick up -d or -e
-    adb_args = ' '.join(sys.argv[1:])
+    pid = None
+    if len(sys.argv) > 1:
+        package = sys.argv[1]
+        pid = extractPID(package)
 
     # if someone is piping in to us, use stdin as input.  if not, invoke adb logcat
     if os.isatty(sys.stdin.fileno()):
-        input = os.popen("adb %s logcat -v time" % adb_args)
+        input = os.popen("adb logcat -v time")
     else:
         input = sys.stdin
 
@@ -118,6 +134,9 @@ def main():
         match = retag.match(line)
         if not match is None:
             date, timestamp, tagtype, tag, procID, message = match.groups()
+            procID = procID[1:-1]
+            if pid and procID != pid:
+                continue
 
             linebuf = cStringIO.StringIO()
 
