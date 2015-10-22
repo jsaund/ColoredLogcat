@@ -21,7 +21,6 @@
 import cStringIO
 import fcntl
 import os
-import random
 import re
 import struct
 import sys
@@ -60,10 +59,11 @@ LOG_LEVEL_FORMATTING = {
 }
 
 # tag colors
-TAG_COLORS = [ 226, 220, 213, 199, 195, 190, 160, 105, 87, 39 ]
+TAG_COLORS = [ 226, 220, 213, 203, 199, 195, 190, 160, 105, 87, 75, 39, 13, 11, 10 ]
 
 # color cache
 tag_color_cache = dict()
+color_index = 0
 
 def format(text, width, format_prop=None, align='left'):
     if align == 'center':
@@ -77,14 +77,15 @@ def format(text, width, format_prop=None, align='left'):
 def get_color(tag):
     color = tag_color_cache.get(tag)
     if not color:
-        color = random.choice(TAG_COLORS)
+        global color_index
+        color = LOG_TAG % TAG_COLORS[color_index]
+        color_index = (color_index + 1) % len(TAG_COLORS)
         tag_color_cache[tag] = color
     return color
 
-def wrap_text(text, indent=0, width=80):
+def wrap_text(text, buf, indent=0, width=80):
     text_length = len(text)
     wrap_length = width - indent
-    buf = cStringIO.StringIO()
     pos = 0
     while pos < text_length:
         next = min(pos + wrap_length, text_length)
@@ -93,8 +94,6 @@ def wrap_text(text, indent=0, width=80):
             buf.write("\n%s" % (" " * indent))
         pos = next
     wraped_text = buf.getvalue()
-    buf.close()
-    return wraped_text
 
 def extractPID(package):
     # attempt to extract the process ID from adb shell
@@ -148,13 +147,11 @@ def main():
                     continue
 
                 linebuf = cStringIO.StringIO()
-                linebuf.write("%s " % format(timestamp, WIDTH_TIMESTAMP, LOG_TIMESTAMP, 'center'))
-                linebuf.write("%s " % format(procID, WIDTH_PID, LOG_PROCESS, 'center'))
-                linebuf.write("%s " % format(tag.strip()[:WIDTH_TAG], WIDTH_TAG, LOG_TAG % get_color(tag), 'right'))
-                linebuf.write("%s " % format(tagtype, WIDTH_LOG_LEVEL, LOG_LEVEL_FORMATTING[tagtype], 'center'))
-
-                message = wrap_text(message, HEADER_SIZE + 1, width)
-                linebuf.write(message)
+                linebuf.write(format(timestamp, WIDTH_TIMESTAMP, LOG_TIMESTAMP, 'center') + " ")
+                linebuf.write(format(procID, WIDTH_PID, LOG_PROCESS, 'center') + " ")
+                linebuf.write(format(tag.strip()[-WIDTH_TAG:], WIDTH_TAG, get_color(tag), 'right') + " ")
+                linebuf.write(format(tagtype, WIDTH_LOG_LEVEL, LOG_LEVEL_FORMATTING[tagtype], 'center') + " ")
+                wrap_text(message, linebuf, HEADER_SIZE + 1, width)
 
                 print linebuf.getvalue()
                 linebuf.close()
