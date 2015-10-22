@@ -98,7 +98,7 @@ TAGTYPES = {
 }
 
 def main():
-    retag = re.compile("^(\d+-\d+) (\d{2}:\d{2}:\d{2}.\d{3}) ([VDIWE])\/([^\(]+)\(([^\)]+)\):(.*)$")
+    retag = re.compile("^(\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWE])\/(.*)(\(\d+\)):(.*)$")
 
     # to pick up -d or -e
     adb_args = ' '.join(sys.argv[1:])
@@ -117,7 +117,7 @@ def main():
 
         match = retag.match(line)
         if not match is None:
-            date, timestamp, tagtype, tag, owner, message = match.groups()
+            date, timestamp, tagtype, tag, procID, message = match.groups()
 
             linebuf = cStringIO.StringIO()
 
@@ -126,8 +126,8 @@ def main():
 
             # center process info
             if PROCESS_WIDTH > 0:
-                owner = owner.center(PROCESS_WIDTH)
-                linebuf.write("%s%s%s " % (LIGHT_GRAY, owner, format(reset=True)))
+                procID = procID[1:-1].center(PROCESS_WIDTH)
+                linebuf.write("%s%s%s " % (LIGHT_GRAY, procID, format(reset=True)))
 
             # right-align tag title and allocate color if needed
             tag = tag.strip()
