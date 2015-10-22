@@ -18,76 +18,83 @@
 
 # Color coded logcat script to highlight adb logcat output for console.
 
-import os
-import sys
-import re
 import cStringIO
 import fcntl
-import termios
+import os
+import random
+import re
 import struct
+import sys
+import termios
 
-# unpack the current terminal width/height
-data = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234')
-HEIGHT, WIDTH = struct.unpack('hh',data)
+# pattern to extract data from log
+# the pattern currently conforms to the log output received from
+# adb 1.0.31
+PATTERN = "^(\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWE])\/(.*)(\(\d+\)):(.*)$"
 
-BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
-LIGHT_GRAY = "\033[38;5;59m"
+# formatting properties
+LOG_LEVEL_VERBOSE = '\033[0;30;48;5;51m'
+LOG_LEVEL_INFO = '\033[0;30;48;5;177m'
+LOG_LEVEL_DEBUG = '\033[0;30;48;5;119m'
+LOG_LEVEL_WARNING = '\033[0;30;48;5;229m'
+LOG_LEVEL_ERROR = '\033[38;5;225;48;5;197m'
+LOG_PROCESS = '\033[0;38;5;244;48;5;236m'
+LOG_TAG = '\033[0;38;5;%dm'
+LOG_TIMESTAMP = '\033[0;38;5;235m'
+RESET = '\033[0m'
 
-LAST_USED = [RED,GREEN,YELLOW,BLUE,MAGENTA,CYAN,WHITE]
-KNOWN_TAGS = {
-    "dalvikvm": BLUE,
-    "Process": BLUE,
-    "ActivityManager": CYAN,
-    "ActivityThread": CYAN,
+# column widths
+WIDTH_LOG_LEVEL = 3
+WIDTH_TAG = 25
+WIDTH_PID = 7
+WIDTH_TIMESTAMP = 12
+HEADER_SIZE = WIDTH_TIMESTAMP + 1 + WIDTH_PID + 1 + WIDTH_TAG + 1 + WIDTH_LOG_LEVEL + 1
+
+# log level formatting
+LOG_LEVEL_FORMATTING = {
+    'V': LOG_LEVEL_VERBOSE,
+    'I': LOG_LEVEL_INFO,
+    'D': LOG_LEVEL_DEBUG,
+    'W': LOG_LEVEL_WARNING,
+    'E': LOG_LEVEL_ERROR
 }
 
-RULES = {
-    #re.compile(r"([\w\.@]+)=([\w\.@]+)"): r"%s\1%s=%s\2%s" % (format(fg=BLUE), format(fg=GREEN), format(fg=BLUE), format(reset=True)),
-}
+# tag colors
+TAG_COLORS = [ 226, 220, 213, 199, 195, 190, 160, 105, 87, 39 ]
 
-TIMESTAMP_WIDTH = 12
-TAGTYPE_WIDTH = 3
-TAG_WIDTH = 25
-PROCESS_WIDTH = 7
-HEADER_SIZE = TIMESTAMP_WIDTH + 1 + TAGTYPE_WIDTH + 1 + TAG_WIDTH + 1 + PROCESS_WIDTH + 1
+# color cache
+tag_color_cache = dict()
 
-def format(fg=None, bg=None, bright=False, bold=False, dim=False, reset=False):
-    # manually derived from http://en.wikipedia.org/wiki/ANSI_escape_code#Codes
-    codes = []
-    if reset: codes.append("0")
-    else:
-        if not fg is None: codes.append("3%d" % (fg))
-        if not bg is None:
-            if not bright: codes.append("4%d" % (bg))
-            else: codes.append("10%d" % (bg))
-        if bold: codes.append("1")
-        elif dim: codes.append("2")
-        else: codes.append("22")
-    return "\033[%sm" % (";".join(codes))
+def format(text, width, format_prop=None, align='left'):
+    if align == 'center':
+        text = text.center(width)
+    elif align == 'right':
+        text = text.rjust(width)
+    if format_prop:
+        text = format_prop + text + RESET
+    return text
 
-def indent_wrap(message, indent=0, width=80):
-    wrap_area = width - indent
-    messagebuf = cStringIO.StringIO()
-    current = 0
-    while current < len(message):
-        next = min(current + wrap_area, len(message))
-        messagebuf.write(message[current:next].lstrip())
-        if next < len(message):
-            messagebuf.write("\n%s" % (" " * indent))
-        current = next
-    val = messagebuf.getvalue()
-    messagebuf.close()
-    return val
-
-def allocate_color(tag):
-    # this will allocate a unique format for the given tag
-    # since we dont have very many colors, we always keep track of the LRU
-    if not tag in KNOWN_TAGS:
-        KNOWN_TAGS[tag] = LAST_USED[0]
-    color = KNOWN_TAGS[tag]
-    LAST_USED.remove(color)
-    LAST_USED.append(color)
+def get_color(tag):
+    color = tag_color_cache.get(tag)
+    if not color:
+        color = random.choice(TAG_COLORS)
+        tag_color_cache[tag] = color
     return color
+
+def wrap_text(text, indent=0, width=80):
+    text_length = len(text)
+    wrap_length = width - indent
+    buf = cStringIO.StringIO()
+    pos = 0
+    while pos < text_length:
+        next = min(pos + wrap_length, text_length)
+        buf.write(text[pos:next])
+        if next < text_length:
+            buf.write("\n%s" % (" " * indent))
+        pos = next
+    wraped_text = buf.getvalue()
+    buf.close()
+    return wraped_text
 
 def extractPID(package):
     # attempt to extract the process ID from adb shell
@@ -104,73 +111,57 @@ def extractPID(package):
     finally:
         input.close()
 
-TAGTYPES = {
-    "V": "%s%s%s " % (format(fg=WHITE, bg=BLACK), "V".center(TAGTYPE_WIDTH), format(reset=True)),
-    "D": "%s%s%s " % (format(fg=BLACK, bg=BLUE), "D".center(TAGTYPE_WIDTH), format(reset=True)),
-    "I": "%s%s%s " % (format(fg=BLACK, bg=GREEN), "I".center(TAGTYPE_WIDTH), format(reset=True)),
-    "W": "%s%s%s " % (format(fg=BLACK, bg=YELLOW), "W".center(TAGTYPE_WIDTH), format(reset=True)),
-    "E": "%s%s%s " % (format(fg=BLACK, bg=RED), "E".center(TAGTYPE_WIDTH), format(reset=True)),
-}
-
 def main():
-    retag = re.compile("^(\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWE])\/(.*)(\(\d+\)):(.*)$")
+    # unpack the current terminal width/height
+    data = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234')
+    height, width = struct.unpack('hh', data)
+
+    retag = re.compile(PATTERN)
     pid = None
     if len(sys.argv) > 1:
         package = sys.argv[1]
         pid = extractPID(package)
 
+    proc = None
+
     # if someone is piping in to us, use stdin as input.  if not, invoke adb logcat
     if os.isatty(sys.stdin.fileno()):
-        input = os.popen("adb logcat -v time")
+        cmd = "adb logcat -v time"
+        pipe = os.popen(cmd)
     else:
-        input = sys.stdin
+        pipe = sys.stdin
 
     while True:
         try:
-            line = input.readline()
+            line = pipe.readline()
         except KeyboardInterrupt:
             break
+        except Exception, err:
+            print err
+            break
+        else:
+            match = retag.match(line)
+            if match:
+                date, timestamp, tagtype, tag, procID, message = match.groups()
+                procID = procID[1:-1]
+                if pid and procID != pid:
+                    continue
 
-        match = retag.match(line)
-        if not match is None:
-            date, timestamp, tagtype, tag, procID, message = match.groups()
-            procID = procID[1:-1]
-            if pid and procID != pid:
-                continue
+                linebuf = cStringIO.StringIO()
+                linebuf.write("%s " % format(timestamp, WIDTH_TIMESTAMP, LOG_TIMESTAMP, 'center'))
+                linebuf.write("%s " % format(procID, WIDTH_PID, LOG_PROCESS, 'center'))
+                linebuf.write("%s " % format(tag.strip()[:WIDTH_TAG], WIDTH_TAG, LOG_TAG % get_color(tag), 'right'))
+                linebuf.write("%s " % format(tagtype, WIDTH_LOG_LEVEL, LOG_LEVEL_FORMATTING[tagtype], 'center'))
 
-            linebuf = cStringIO.StringIO()
+                message = wrap_text(message, HEADER_SIZE + 1, width)
+                linebuf.write(message)
 
-            if TIMESTAMP_WIDTH > 0:
-                linebuf.write("%s%s%s " % (LIGHT_GRAY, timestamp, format(reset=True)))
+                print linebuf.getvalue()
+                linebuf.close()
+        finally:
+            if proc:
+                proc.terminate()
 
-            # center process info
-            if PROCESS_WIDTH > 0:
-                procID = procID[1:-1].center(PROCESS_WIDTH)
-                linebuf.write("%s%s%s " % (LIGHT_GRAY, procID, format(reset=True)))
-
-            # right-align tag title and allocate color if needed
-            tag = tag.strip()
-            color = allocate_color(tag)
-            tag = tag[-TAG_WIDTH:].rjust(TAG_WIDTH)
-            linebuf.write("%s%s %s" % (format(fg=color, dim=False), tag, format(reset=True)))
-
-            # write out tagtype colored edge
-            if not tagtype in TAGTYPES: break
-            linebuf.write(TAGTYPES[tagtype])
-
-            # insert line wrapping as needed
-            message = indent_wrap(message.strip(), HEADER_SIZE, WIDTH)
-
-            # format tag message using rules
-            for matcher in RULES:
-                replace = RULES[matcher]
-                message = matcher.sub(replace, message)
-
-            linebuf.write(message)
-            print linebuf.getvalue()
-            linebuf.close()
-
-        if len(line) == 0: break
 
 if __name__ == "__main__":
     main()
