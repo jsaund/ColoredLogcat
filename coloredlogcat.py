@@ -29,7 +29,7 @@ import termios
 # pattern to extract data from log
 # the pattern currently conforms to the log output received from
 # adb 1.0.31
-PATTERN = "^(\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWE])\/(.*)(\(\s+\d+\)):(.*)$"
+PATTERN = "^(\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWE])\/(.*)(\(\s*\d+\)):(.*)$"
 
 # formatting properties
 LOG_LEVEL_VERBOSE = '\033[38;5;225;48;5;8m'
