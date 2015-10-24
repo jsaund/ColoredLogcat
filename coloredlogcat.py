@@ -142,7 +142,7 @@ def main():
             match = retag.match(line)
             if match:
                 date, timestamp, tagtype, tag, procID, message = match.groups()
-                procID = procID[1:-1]
+                procID = procID[1:-1].strip()
                 if pid and procID != pid:
                     continue
 
