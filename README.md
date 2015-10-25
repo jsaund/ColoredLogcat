@@ -16,6 +16,13 @@ To obtain just the information associated with your process you can run colored 
 
 ./coloredlogcat.py [com.your.package]
 
+### Custom Filtering using Pipes
+You can completely customize the filtering operation by piping the result from either a file or directly from 'adb logcat -v time'.
+
+adb logcat -v time MyTagOne:V MyTagTwo:V *:S | grep "some text" | ./coloredlogcat.py
+
+cat my_logs.txt | ./coloredlogcat.py
+
 ## Requirements
 - Python 2.7.6+
 - ADB 1.0.31
@@ -24,3 +31,5 @@ To obtain just the information associated with your process you can run colored 
 ColoredLogcat is availble under the Apache 2.0 License.
 
 ## TODO
+- Add support for filtering on tags
+- Add support for filtering on wildcards in log body
