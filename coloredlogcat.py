@@ -59,7 +59,7 @@ LOG_LEVEL_FORMATTING = {
 }
 
 # tag colors
-TAG_COLORS = [ 226, 220, 213, 203, 199, 195, 190, 160, 105, 87, 75, 39, 13, 11, 10 ]
+TAG_COLORS = [ 226, 10, 213, 203, 199, 195, 190, 160, 105, 87, 220, 75, 39, 13, 11 ]
 
 # color cache
 tag_color_cache = dict()
@@ -133,6 +133,8 @@ def main():
     while True:
         try:
             line = pipe.readline()
+            if not line:
+                break
         except KeyboardInterrupt:
             break
         except Exception, err:
